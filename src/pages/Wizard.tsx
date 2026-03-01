@@ -19,15 +19,17 @@ const STEP_CONTENT = [
 function useStepValid() {
   const currentStep = useUploadStore((s) => s.currentStep);
   const products = useUploadStore((s) => s.products);
+  const mappingConfirmed = useUploadStore((s) => s.mappingConfirmed);
   const imageList = useUploadStore((s) => s.imageList);
+  const imagesByFilename = useUploadStore((s) => s.imagesByFilename);
 
   switch (currentStep) {
     case 1:
-      return products.length > 0;
+      return mappingConfirmed && products.length > 0;
     case 2:
       return products.length > 0;
     case 3:
-      return products.length > 0 && imageList.length > 0;
+      return products.length > 0 && (imageList.length > 0 || Object.keys(imagesByFilename).length > 0);
     case 4:
       return true;
     default:

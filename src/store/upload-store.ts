@@ -1,4 +1,6 @@
 import type { Product } from "@/types/product";
+import type { ColumnMapping, RawRow } from "@/types/excel";
+import type { WorkBook } from "xlsx";
 import { create } from "zustand";
 
 export type UploadStatus = "idle" | "uploading" | "success" | "error";
@@ -11,7 +13,15 @@ type UploadState = {
   uploadStatus: UploadStatus;
   currentUploadProduct: string | undefined;
   imageList: { sku: string; filename: string; url?: string }[];
-  imageMapping: Record<string, string>; // sku -> color or key -> option value
+  imageMapping: Record<string, string>;
+  imagesByFilename: Record<string, string>;
+  workbook: WorkBook | null;
+  sheetNames: string[];
+  selectedSheetName: string | null;
+  rawRows: RawRow[];
+  excelHeaders: string[];
+  columnMapping: ColumnMapping | null;
+  mappingConfirmed: boolean;
 };
 
 type UploadActions = {
@@ -32,6 +42,14 @@ type UploadActions = {
   resetUpload: () => void;
   setImageList: (list: { sku: string; filename: string; url?: string }[]) => void;
   setImageMapping: (mapping: Record<string, string>) => void;
+  setImagesByFilename: (map: Record<string, string>) => void;
+  setWorkbook: (workbook: WorkBook | null) => void;
+  setSheetNames: (sheetNames: string[]) => void;
+  setSelectedSheetName: (name: string | null) => void;
+  setRawRows: (rows: RawRow[]) => void;
+  setExcelHeaders: (headers: string[]) => void;
+  setColumnMapping: (mapping: ColumnMapping | null) => void;
+  setMappingConfirmed: (confirmed: boolean) => void;
 };
 
 const initialState: UploadState = {
@@ -43,6 +61,14 @@ const initialState: UploadState = {
   currentUploadProduct: undefined,
   imageList: [],
   imageMapping: {},
+  imagesByFilename: {},
+  workbook: null,
+  sheetNames: [],
+  selectedSheetName: null,
+  rawRows: [],
+  excelHeaders: [],
+  columnMapping: null,
+  mappingConfirmed: false,
 };
 
 export const useUploadStore = create<UploadState & UploadActions>((set) => ({
@@ -107,8 +133,24 @@ export const useUploadStore = create<UploadState & UploadActions>((set) => ({
       products: [],
       imageList: [],
       imageMapping: {},
+      imagesByFilename: {},
+      workbook: null,
+      sheetNames: [],
+      selectedSheetName: null,
+      rawRows: [],
+      excelHeaders: [],
+      columnMapping: null,
+      mappingConfirmed: false,
     }),
 
   setImageList: (imageList) => set({ imageList }),
   setImageMapping: (imageMapping) => set({ imageMapping }),
+  setImagesByFilename: (imagesByFilename) => set({ imagesByFilename }),
+  setWorkbook: (workbook) => set({ workbook }),
+  setSheetNames: (sheetNames) => set({ sheetNames }),
+  setSelectedSheetName: (selectedSheetName) => set({ selectedSheetName }),
+  setRawRows: (rawRows) => set({ rawRows }),
+  setExcelHeaders: (excelHeaders) => set({ excelHeaders }),
+  setColumnMapping: (columnMapping) => set({ columnMapping }),
+  setMappingConfirmed: (mappingConfirmed) => set({ mappingConfirmed }),
 }));

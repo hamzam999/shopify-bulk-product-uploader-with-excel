@@ -1,35 +1,77 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useUploadStore } from "@/store/upload-store";
-import { parseProductsFile } from "@/utils/mockParse";
+import { parseExcelWorkbook, getSheetData } from "@/utils/excelParse";
+import { ColumnMapperModal } from "@/components/ColumnMapperModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, FileJson } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Upload, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 
 export function Step1Upload() {
   const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const setProducts = useUploadStore((s) => s.setProducts);
+  const [mapperOpen, setMapperOpen] = useState(false);
+
+  const workbook = useUploadStore((s) => s.workbook);
+  const sheetNames = useUploadStore((s) => s.sheetNames);
+  const selectedSheetName = useUploadStore((s) => s.selectedSheetName);
   const products = useUploadStore((s) => s.products);
+  const mappingConfirmed = useUploadStore((s) => s.mappingConfirmed);
+
+  const setWorkbook = useUploadStore((s) => s.setWorkbook);
+  const setSheetNames = useUploadStore((s) => s.setSheetNames);
+  const setSelectedSheetName = useUploadStore((s) => s.setSelectedSheetName);
+  const setRawRows = useUploadStore((s) => s.setRawRows);
+  const setExcelHeaders = useUploadStore((s) => s.setExcelHeaders);
 
   const handleFile = useCallback(
     async (file: File | null) => {
       if (!file) return;
+      const name = file.name.toLowerCase();
+      if (!name.endsWith(".xlsx") && !name.endsWith(".xls")) {
+        toast.error("Please upload an Excel file (.xlsx or .xls).");
+        return;
+      }
       setLoading(true);
       try {
-        const parsed = await parseProductsFile(file);
-        setProducts(parsed);
-        toast.success(`${parsed.length} product(s) loaded.`);
+        const { workbook: wb, sheetNames: names } = await parseExcelWorkbook(file);
+        setWorkbook(wb);
+        setSheetNames(names);
+        setSelectedSheetName(names[0] ?? null);
+        toast.success("Excel file loaded. Select a sheet and map columns.");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to parse file.");
+        toast.error(e instanceof Error ? e.message : "Failed to parse Excel.");
       } finally {
         setLoading(false);
       }
     },
-    [setProducts]
+    [setWorkbook, setSheetNames, setSelectedSheetName]
   );
+
+  useEffect(() => {
+    if (!workbook || !selectedSheetName) return;
+    try {
+      const { headers, rows } = getSheetData(workbook, selectedSheetName);
+      setExcelHeaders(headers);
+      setRawRows(rows);
+      setMapperOpen(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to read sheet.");
+    }
+  }, [workbook, selectedSheetName, setExcelHeaders, setRawRows]);
+
+  const onSheetChange = (name: string) => {
+    setSelectedSheetName(name);
+    setMapperOpen(true);
+  };
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -44,60 +86,93 @@ export function Step1Upload() {
     e.target.value = "";
   };
 
+  const canProceed = mappingConfirmed && products.length > 0;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Upload products</CardTitle>
-        <CardDescription>
-          Upload a products.json file or an Excel file (mock: .xlsx will load sample data).
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={onDrop}
-          className={`
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload Excel</CardTitle>
+          <CardDescription>
+            Upload an Excel file (.xlsx or .xls). Select a sheet and map columns to system fields.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={onDrop}
+            className={`
             flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12
             transition-colors
             ${dragOver ? "border-primary bg-primary/5" : "border-muted-foreground/25"}
           `}
-        >
-          <input
-            type="file"
-            accept=".json,.xlsx,.xls"
-            onChange={onInputChange}
-            disabled={loading}
-            className="hidden"
-            id="file-upload"
-          />
-          <label
-            htmlFor="file-upload"
-            className="flex cursor-pointer flex-col items-center gap-2 text-center"
           >
-            {loading ? (
-              <span className="text-muted-foreground">Parsing...</span>
-            ) : (
-              <>
-                <Upload className="h-10 w-10 text-muted-foreground" />
-                <span className="text-sm font-medium">Drop file here or click to browse</span>
-                <span className="text-xs text-muted-foreground">.json or .xlsx</span>
-              </>
-            )}
-          </label>
-        </div>
-        {products.length > 0 && (
-          <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-4 py-3">
-            <FileJson className="h-5 w-5 text-muted-foreground" />
-            <span className="text-sm font-medium">
-              {products.length} product(s) loaded. You can proceed to the next step.
-            </span>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={onInputChange}
+              disabled={loading}
+              className="hidden"
+              id="file-upload"
+            />
+            <label
+              htmlFor="file-upload"
+              className="flex cursor-pointer flex-col items-center gap-2 text-center"
+            >
+              {loading ? (
+                <span className="text-muted-foreground">Parsing...</span>
+              ) : (
+                <>
+                  <Upload className="h-10 w-10 text-muted-foreground" />
+                  <span className="text-sm font-medium">Drop Excel file or click to browse</span>
+                  <span className="text-xs text-muted-foreground">.xlsx or .xls</span>
+                </>
+              )}
+            </label>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          {workbook && sheetNames.length > 0 && (
+            <div className="space-y-2">
+              <Label>Sheet</Label>
+              <Select value={selectedSheetName ?? ""} onValueChange={onSheetChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select sheet" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sheetNames.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setMapperOpen(true)}
+              >
+                Edit column mapping
+              </Button>
+            </div>
+          )}
+
+          {canProceed && (
+            <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-4 py-3">
+              <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm font-medium">
+                {products.length} product(s) ready. You can proceed to the next step.
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <ColumnMapperModal open={mapperOpen} onOpenChange={setMapperOpen} />
+    </>
   );
 }

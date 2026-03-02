@@ -30,13 +30,12 @@ export function ProductPagePreview({
   const [selectedSize, setSelectedSize] = useState<string | null>(() => null);
   const colorMappingPerProduct = useUploadStore((s) => s.colorMappingPerProduct);
   const optionToImageTerm = colorMappingPerProduct[productIndex];
-
   const colorOpt = product.options.find((o) => o.name.toLowerCase() === "color");
   const sizeOpt = product.options.find((o) => o.name.toLowerCase() === "size");
   const images = product.images ?? [];
   const effectiveColor = selectedColor ?? colorOpt?.values[0] ?? null;
   const effectiveSize = selectedSize ?? sizeOpt?.values[0] ?? null;
-
+  console.log(optionToImageTerm);
   const displayImages = useMemo(() => {
     if (!colorOpt || !effectiveColor) return images;
     return getImagesForColor(
@@ -62,7 +61,7 @@ export function ProductPagePreview({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{product.title}</CardTitle>
+        <CardTitle className="text-2xl text-center">{product.title}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6 sm:flex-row">
         <div className="flex-1 space-y-2">
@@ -113,7 +112,7 @@ export function ProductPagePreview({
           )}
         </div>
         <div className="flex flex-1 flex-col gap-4">
-          <p className="text-lg font-medium">${firstPrice}</p>
+          <p className="text-lg font-medium">Price: {firstPrice}</p>
           {colorOpt && (
             <div>
               <p className="mb-2 text-sm font-medium">Color</p>
@@ -155,6 +154,11 @@ export function ProductPagePreview({
               </Select>
             </div>
           )}
+          <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
+          <p className="text-sm text-muted-foreground">Tags: {product.tags}</p>
+          <p className="text-sm text-muted-foreground">Product Type: {product.productType}</p>
+          <p className="text-sm text-muted-foreground">Handle: {product.handle}</p>
+          <p className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}></p>
         </div>
       </CardContent>
     </Card>

@@ -36,12 +36,16 @@ function descriptionToHtml(description: string): string {
   if (!description.trim()) return "<p></p>";
   const lines = description.split(/\n/).map((l) => l.trim()).filter(Boolean);
   const out: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (i === 0 && line.length > 0) {
-      out.push(`<p><strong>${escapeHtml(line)}</strong></p>`);
-    } else if (line.endsWith(":")) {
-      out.push(`<p><strong>${escapeHtml(line)}</strong></p>`);
+  for (const line of lines) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx >= 0) {
+      const label = line.slice(0, colonIdx + 1);
+      const value = line.slice(colonIdx + 1).trim();
+      out.push(
+        value
+          ? `<p><strong>${escapeHtml(label)}</strong> ${escapeHtml(value)}</p>`
+          : `<p><strong>${escapeHtml(label)}</strong></p>`
+      );
     } else {
       out.push(`<p>${escapeHtml(line)}</p>`);
     }

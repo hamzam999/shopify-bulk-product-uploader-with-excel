@@ -8,11 +8,13 @@ export function ImageValidationPanel() {
   const products = useUploadStore((s) => s.products);
   const imagesByFilename = useUploadStore((s) => s.imagesByFilename);
   const localImageList = useUploadStore((s) => s.localImageList);
+  const colorMappingPerProduct = useUploadStore((s) => s.colorMappingPerProduct);
 
   const { summary, perProduct } = computeValidation(
     products,
     imagesByFilename,
-    localImageList
+    localImageList,
+    colorMappingPerProduct
   );
 
   return (
@@ -47,7 +49,7 @@ export function ImageValidationPanel() {
                 key={v.productIndex}
                 className="rounded border p-3 text-sm"
               >
-                <p className="font-medium">{v.productTitle}</p>
+                <p className="font-medium">{v.productTitle} - {products[v.productIndex].sku}</p>
                 <ul className="mt-2 flex flex-wrap gap-2">
                   <li className="flex items-center gap-1">
                     {v.imagesMatched ? (

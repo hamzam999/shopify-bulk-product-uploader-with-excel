@@ -1,7 +1,7 @@
 import type { Product } from "@/types/product";
 import type { ColumnMapping, RawRow } from "@/types/excel";
-import type { WorkBook } from "xlsx";
 import { create } from "zustand";
+import type { Workbook } from "exceljs";
 
 export type UploadStatus = "idle" | "uploading" | "success" | "error";
 
@@ -19,7 +19,7 @@ type UploadState = {
   localImageUrls: Record<string, string>;
   /** productIndex -> (optionColor -> imageSearchTerm) for getImagesForColor */
   colorMappingPerProduct: Record<number, Record<string, string>>;
-  workbook: WorkBook | null;
+  workbook: Workbook | null;
   sheetNames: string[];
   selectedSheetName: string | null;
   rawRows: RawRow[];
@@ -55,7 +55,7 @@ type UploadActions = {
     productIndex: number,
     mapping: Record<string, string>
   ) => void;
-  setWorkbook: (workbook: WorkBook | null) => void;
+  setWorkbook: (workbook: Workbook | null) => void;
   setSheetNames: (sheetNames: string[]) => void;
   setSelectedSheetName: (name: string | null) => void;
   setRawRows: (rows: RawRow[]) => void;

@@ -31,7 +31,7 @@ export function Step3ImageMapping() {
   const selectedProductIndex = useUploadStore((s) => s.selectedProductIndex);
   const setSelectedProduct = useUploadStore((s) => s.setSelectedProduct);
   const updateProduct = useUploadStore((s) => s.updateProduct);
-
+  // console.log(imagesByFilename);
   const hasImageSource =
     Object.keys(imagesByFilename).length > 0 || localImageList.length > 0;
 
@@ -150,7 +150,7 @@ export function Step3ImageMapping() {
               <SelectContent>
                 {products.map((p, i) => (
                   <SelectItem key={p.sku} value={String(i)}>
-                    {p.title}
+                    {p.title} - {p.sku}
                   </SelectItem>
                 ))}
               </SelectContent>

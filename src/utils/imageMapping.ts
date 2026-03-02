@@ -82,18 +82,34 @@ export function matchImagesToProducts(
   return result;
 }
 
-/** Get images for a product filtered by color (filename contains color segment). */
+/** Get search terms for a variant color: literal normalized name, base colour (last word), and optional mapped term. */
+export function getSearchTermsForVariantColor(
+  color: string,
+  mappedTerm?: string
+): string[] {
+  const colorNorm = color.trim().toLowerCase().replace(/\s+/g, "-");
+  const words = color.trim().split(/\s+/).filter(Boolean);
+  const baseColor = words.length > 0
+    ? words[words.length - 1].toLowerCase().replace(/\s+/g, "-")
+    : "";
+  const mappedNorm = mappedTerm?.trim()
+    ? mappedTerm.trim().toLowerCase().replace(/\s+/g, "-")
+    : "";
+  const terms = [colorNorm, baseColor, mappedNorm].filter(Boolean);
+  return [...new Set(terms)];
+}
+
+/** Get images for a product filtered by color (filename contains any of the color's search terms). */
 export function getImagesForColor(
   images: ProductImage[],
   color: string,
   _productSku: string,
   optionToImageTerm?: Record<string, string>
 ): ProductImage[] {
-  const searchTerm = optionToImageTerm?.[color] ?? color;
-  const termLower = searchTerm.toLowerCase().replace(/\s+/g, "-");
+  const terms = getSearchTermsForVariantColor(color, optionToImageTerm?.[color]);
   return images.filter((img) => {
     const base = img.filename.replace(/\.[^.]+$/, "").toLowerCase();
-    return base.includes(termLower);
+    return terms.some((t) => base.includes(t));
   });
 }
 
@@ -192,7 +208,8 @@ export type ProductValidation = {
 export function computeValidation(
   products: Product[],
   imageUrlMap: Record<string, string>,
-  localImageList: string[]
+  localImageList: string[],
+  colorMappingPerProduct?: Record<number, Record<string, string>>
 ): { summary: ValidationSummary; perProduct: ProductValidation[] } {
   const allFilenames = new Set<string>([
     ...Object.keys(imageUrlMap),
@@ -213,7 +230,11 @@ export function computeValidation(
       if (colorOpt) {
         const base = img.filename.replace(/\.[^.]+$/, "").toLowerCase();
         for (const c of colorValues) {
-          if (base.includes(c.toLowerCase().replace(/\s+/g, "-"))) {
+          const terms = getSearchTermsForVariantColor(
+            c,
+            colorMappingPerProduct?.[i]?.[c]
+          );
+          if (terms.some((t) => base.includes(t))) {
             colorsWithImages.add(c);
           }
         }

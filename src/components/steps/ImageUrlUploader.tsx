@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useUploadStore } from "@/store/upload-store";
 import { parseImageUrlMapFile, parseImageUrlMapFromString } from "@/utils/imageMapping";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 export function ImageUrlUploader() {
   const [loading, setLoading] = useState(false);
   const [pasteText, setPasteText] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const setImagesByFilename = useUploadStore((s) => s.setImagesByFilename);
   const imagesByFilename = useUploadStore((s) => s.imagesByFilename);
 
@@ -45,11 +46,18 @@ export function ImageUrlUploader() {
     }
   }, [pasteText, setImagesByFilename]);
 
-  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) handleFile(f);
-    e.target.value = "";
-  };
+  const onInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0];
+      if (f) handleFile(f);
+      e.target.value = "";
+    },
+    [handleFile]
+  );
+
+  const openFileDialog = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
   const count = Object.keys(imagesByFilename).length;
 
@@ -64,21 +72,23 @@ export function ImageUrlUploader() {
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-4">
           <input
+            ref={fileInputRef}
             type="file"
-            accept=".json"
+            accept=".json,application/json"
             onChange={onInputChange}
             disabled={loading}
             className="hidden"
-            id="image-json-upload"
+            aria-hidden
           />
-          <Label htmlFor="image-json-upload" className="cursor-pointer">
-            <Button type="button" variant="outline" asChild>
-              <span>
-                <Upload className="mr-2 h-4 w-4" />
-                {loading ? "Loading..." : "Upload JSON file"}
-              </span>
-            </Button>
-          </Label>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={openFileDialog}
+            disabled={loading}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {loading ? "Loading..." : "Upload JSON file"}
+          </Button>
           {count > 0 && (
             <span className="flex items-center gap-2 text-sm text-muted-foreground">
               <FileJson className="h-4 w-4" />

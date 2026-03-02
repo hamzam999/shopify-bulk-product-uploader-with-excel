@@ -77,19 +77,8 @@ export default function Wizard() {
           </Button>
         </div>
         <StepIndicator />
-      </header>
-      <main className="mx-auto p-8">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentStep}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.2 }}
-            className="space-y-6"
-          >
-            <CurrentStepComponent />
-            <div className="flex justify-between border-t pt-6">
+        <div className="px-8 py-6">
+        <div className="flex justify-between border-t pt-6">
               <Button
                 variant="outline"
                 onClick={goBack}
@@ -105,6 +94,20 @@ export default function Wizard() {
                 </Button>
               ) : null}
             </div>
+        </div>
+      </header>
+      <main className="mx-auto p-8">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6 px-12 p-8 bg-gray-100 rounded-lg "
+          >
+            <CurrentStepComponent />
+           
           </motion.div>
         </AnimatePresence>
       </main>

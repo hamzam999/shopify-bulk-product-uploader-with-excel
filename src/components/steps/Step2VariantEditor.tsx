@@ -211,6 +211,7 @@ export function Step2VariantEditor() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>S.No.</TableHead>
                         {selectedProduct.options.map((o) => (
                           <TableHead key={o.name}>{o.name}</TableHead>
                         ))}
@@ -222,6 +223,7 @@ export function Step2VariantEditor() {
                     <TableBody>
                       {selectedProduct.variants.map((v, vi) => (
                         <TableRow key={v.sku}>
+                          <TableCell>{vi + 1}</TableCell>
                           {v.options.map((opt, oi) => (
                             <TableCell key={oi}>{opt}</TableCell>
                           ))}

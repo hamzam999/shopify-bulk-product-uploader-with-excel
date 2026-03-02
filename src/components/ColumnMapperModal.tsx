@@ -52,11 +52,39 @@ export function ColumnMapperModal({ open, onOpenChange }: ColumnMapperModalProps
   const [localMapping, setLocalMapping] = useState<ColumnMapping>({});
   const NONE = "__none__";
 
+  /** Auto-match: if an Excel header has the same name as (or includes / is included in) the system field id or label, pre-select it. */
+  function getInitialMapping(): ColumnMapping {
+    const mapping: ColumnMapping = { ...(columnMapping ?? {}) };
+    for (const fieldId of SYSTEM_FIELD_IDS) {
+      if (mapping[fieldId]) continue;
+      const fieldLower = fieldId.toLowerCase();
+      const labelLower = FIELD_LABELS[fieldId].toLowerCase();
+      const matched = excelHeaders.find((header) => {
+        const h = String(header).trim().toLowerCase();
+        if (!h) return false;
+        return (
+          h === fieldLower ||
+          h === labelLower ||
+          h.includes(fieldLower) ||
+          fieldLower.includes(h) ||
+          h.includes(labelLower) ||
+          labelLower.includes(h)
+        );
+      });
+      if (matched) mapping[fieldId] = matched;
+    }
+    return mapping;
+  }
+
   useEffect(() => {
     if (open) {
-      setLocalMapping(columnMapping ?? {});
+      if (columnMapping && Object.keys(columnMapping).length > 0) {
+        setLocalMapping(columnMapping);
+      } else {
+        setLocalMapping(getInitialMapping());
+      }
     }
-  }, [open, columnMapping]);
+  }, [open, excelHeaders, columnMapping]);
 
   const setField = (field: SystemFieldId, excelHeader: string) => {
     if (!excelHeader || excelHeader === NONE) {

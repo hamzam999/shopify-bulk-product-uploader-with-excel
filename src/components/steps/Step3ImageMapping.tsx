@@ -1,8 +1,14 @@
 import { useCallback, useState } from "react";
 import { useUploadStore } from "@/store/upload-store";
-import { parseImageListFile, groupImagesBySku, type ImageListItem } from "@/utils/imageMock";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { matchImagesToProducts } from "@/utils/imageMapping";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ImageUrlUploader } from "@/components/steps/ImageUrlUploader";
+import { LocalFolderPicker } from "@/components/steps/LocalFolderPicker";
+import { ProductPagePreview } from "@/components/steps/ProductPagePreview";
+import { ImageValidationPanel } from "@/components/steps/ImageValidationPanel";
+import { ColorMappingModal } from "@/components/steps/ColorMappingModal";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -11,201 +17,168 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Upload } from "lucide-react";
+import { Link2, ImageIcon, Eye, CheckSquare, Palette } from "lucide-react";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function Step3ImageMapping() {
+  const [matching, setMatching] = useState(false);
+  const [colorModalOpen, setColorModalOpen] = useState(false);
   const products = useUploadStore((s) => s.products);
-  const imageList = useUploadStore((s) => s.imageList);
-  const setImageList = useUploadStore((s) => s.setImageList);
-  const imageMapping = useUploadStore((s) => s.imageMapping);
-  const setImageMapping = useUploadStore((s) => s.setImageMapping);
+  const imagesByFilename = useUploadStore((s) => s.imagesByFilename);
+  const localImageList = useUploadStore((s) => s.localImageList);
+  const localImageUrls = useUploadStore((s) => s.localImageUrls);
+  const selectedProductIndex = useUploadStore((s) => s.selectedProductIndex);
+  const setSelectedProduct = useUploadStore((s) => s.setSelectedProduct);
+  const updateProduct = useUploadStore((s) => s.updateProduct);
 
-  const [loading, setLoading] = useState(false);
-  const [selectedColorByProduct, setSelectedColorByProduct] = useState<Record<number, string>>({});
+  const hasImageSource =
+    Object.keys(imagesByFilename).length > 0 || localImageList.length > 0;
 
-  const handleFile = useCallback(
-    async (file: File) => {
-      setLoading(true);
-      try {
-        const list = await parseImageListFile(file);
-        setImageList(list);
-        toast.success(`Loaded ${list.length} image(s).`);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to parse file.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [setImageList]
-  );
-
-  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) handleFile(f);
-    e.target.value = "";
-  };
-
-  const imagesBySku = groupImagesBySku(imageList);
-
-  const getImagesForProductAndColor = (productIndex: number, color: string) => {
-    const p = products[productIndex];
-    if (!p) return [];
-    const colorOpt = p.options.find((o) => o.name.toLowerCase() === "color");
-    if (!colorOpt) return [];
-    const variantsWithColor = p.variants.filter((v) => {
-      const colorIdx = p.options.findIndex((o) => o.name.toLowerCase() === "color");
-      return colorIdx >= 0 && v.options[colorIdx] === color;
-    });
-    const skus = variantsWithColor.map((v) => v.sku);
-    const out: ImageListItem[] = [];
-    for (const sku of skus) {
-      (imagesBySku[sku] ?? []).forEach((img) => out.push(img));
+  const runMatch = useCallback(() => {
+    // console.log("runMatch", hasImageSource);
+    if (!hasImageSource) {
+      toast.error("Upload image JSON or select a local folder first.");
+      return;
     }
-    return out;
-  };
+    setMatching(true);
+    try {
+      const results = matchImagesToProducts(
+        products,
+        imagesByFilename,
+        localImageList
+      );
+      results.forEach((images, i) => {
+        updateProduct(i, { images });
+      });
+      // console.log("results", results);
+      toast.success("Images matched to products.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Match failed.");
+    } finally {
+      setMatching(false);
+    }
+  }, [
+    hasImageSource,
+    products,
+    imagesByFilename,
+    localImageList,
+    updateProduct,
+  ]);
+
+  const previewProductIndex =
+    selectedProductIndex !== null && selectedProductIndex < products.length
+      ? selectedProductIndex
+      : 0;
+  const previewProduct = products[previewProductIndex];
+
+  if (products.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground">
+          No products loaded. Complete Step 1 and Step 2 first.
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Image list</CardTitle>
-          <CardDescription>
-            Upload a JSON file with image list (sku, filename, url). Or use mock data by uploading any file.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <input
-              type="file"
-              accept=".json"
-              onChange={onInputChange}
-              disabled={loading}
-              className="hidden"
-              id="image-list-upload"
-            />
-            <Label htmlFor="image-list-upload" className="cursor-pointer">
-              <Button type="button" variant="outline" asChild>
-                <span>
-                  <Upload className="mr-2 h-4 w-4" />
-                  {loading ? "Loading..." : "Upload image list"}
-                </span>
+      <Tabs defaultValue="images" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="images" className="flex items-center gap-2">
+            <ImageIcon className="h-4 w-4" />
+            Images
+          </TabsTrigger>
+          <TabsTrigger value="preview" className="flex items-center gap-2">
+            <Eye className="h-4 w-4" />
+            Preview
+          </TabsTrigger>
+          <TabsTrigger value="validation" className="flex items-center gap-2">
+            <CheckSquare className="h-4 w-4" />
+            Validation
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="images" className="space-y-6">
+          <ImageUrlUploader />
+          <LocalFolderPicker />
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Link2 className="h-5 w-5" />
+                Match images to products
+              </CardTitle>
+              <CardDescription>
+                Run auto-match to attach images to products by SKU prefix (e.g. NAOK01-pink-1.jpg → product NAOK01).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center gap-3">
+              <Button
+                onClick={runMatch}
+                disabled={!hasImageSource || matching}
+              >
+                {matching ? "Matching..." : "Match images"}
               </Button>
-            </Label>
-            {imageList.length > 0 && (
-              <span className="text-sm text-muted-foreground">
-                {imageList.length} image(s) loaded, grouped by SKU.
-              </span>
-            )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setColorModalOpen(true)}
+                disabled={products.length === 0}
+              >
+                <Palette className="mr-2 h-4 w-4" />
+                Map colors
+              </Button>
+            </CardContent>
+          </Card>
+          <ColorMappingModal
+            open={colorModalOpen}
+            onOpenChange={setColorModalOpen}
+          />
+        </TabsContent>
+
+        <TabsContent value="preview" className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Label>Product</Label>
+            <Select
+              value={String(previewProductIndex)}
+              onValueChange={(v) => setSelectedProduct(parseInt(v, 10))}
+            >
+              <SelectTrigger className="w-[280px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {products.map((p, i) => (
+                  <SelectItem key={p.sku} value={String(i)}>
+                    {p.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </CardContent>
-      </Card>
+          <AnimatePresence mode="wait">
+            {previewProduct && (
+              <motion.div
+                key={previewProductIndex}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ProductPagePreview
+                  product={previewProduct}
+                  productIndex={previewProductIndex}
+                  localImageUrls={localImageUrls}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </TabsContent>
 
-      {imageList.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Product preview</CardTitle>
-            <CardDescription>
-              Select color to filter images. Gallery shows images for selected variant option.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[500px]">
-              <div className="grid gap-6 sm:grid-cols-2">
-                {products.map((product, productIndex) => {
-                  const colorOpt = product.options.find(
-                    (o) => o.name.toLowerCase() === "color"
-                  );
-                  const sizeOpt = product.options.find(
-                    (o) => o.name.toLowerCase() === "size"
-                  );
-                  const selectedColor =
-                    selectedColorByProduct[productIndex] ?? colorOpt?.values[0];
-                  const images = selectedColor
-                    ? getImagesForProductAndColor(productIndex, selectedColor)
-                    : [];
-                  const firstPrice = product.variants[0]?.price ?? "—";
-
-                  return (
-                    <Card key={product.sku}>
-                      <CardContent className="p-4">
-                        <div className="space-y-3">
-                          <div className="aspect-square overflow-hidden rounded-md border bg-muted">
-                            {images[0]?.url ? (
-                              <img
-                                src={images[0].url}
-                                alt={product.title}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full items-center justify-center text-muted-foreground">
-                                No image
-                              </div>
-                            )}
-                          </div>
-                          <h3 className="font-medium">{product.title}</h3>
-                          <p className="text-sm text-muted-foreground">${firstPrice}</p>
-                          {colorOpt && (
-                            <div>
-                              <Label className="text-xs">Color</Label>
-                              <Select
-                                value={selectedColor ?? ""}
-                                onValueChange={(val) =>
-                                  setSelectedColorByProduct((prev) => ({
-                                    ...prev,
-                                    [productIndex]: val,
-                                  }))
-                                }
-                              >
-                                <SelectTrigger className="mt-1">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {colorOpt.values.map((v) => (
-                                    <SelectItem key={v} value={v}>
-                                      {v}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                          {sizeOpt && (
-                            <div>
-                              <Label className="text-xs">Size</Label>
-                              <Select>
-                                <SelectTrigger className="mt-1">
-                                  <SelectValue placeholder="Size" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {sizeOpt.values.map((v) => (
-                                    <SelectItem key={v} value={v}>
-                                      {v}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
-
-      {imageList.length === 0 && products.length > 0 && (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Upload an image list to see product previews.
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="validation">
+          <ImageValidationPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

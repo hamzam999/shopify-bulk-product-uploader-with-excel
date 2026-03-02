@@ -15,6 +15,10 @@ type UploadState = {
   imageList: { sku: string; filename: string; url?: string }[];
   imageMapping: Record<string, string>;
   imagesByFilename: Record<string, string>;
+  localImageList: string[];
+  localImageUrls: Record<string, string>;
+  /** productIndex -> (optionColor -> imageSearchTerm) for getImagesForColor */
+  colorMappingPerProduct: Record<number, Record<string, string>>;
   workbook: WorkBook | null;
   sheetNames: string[];
   selectedSheetName: string | null;
@@ -22,6 +26,8 @@ type UploadState = {
   excelHeaders: string[];
   columnMapping: ColumnMapping | null;
   mappingConfirmed: boolean;
+  /** Tags applied to every product (in addition to per-product tags). */
+  universalTags: string[];
 };
 
 type UploadActions = {
@@ -43,6 +49,12 @@ type UploadActions = {
   setImageList: (list: { sku: string; filename: string; url?: string }[]) => void;
   setImageMapping: (mapping: Record<string, string>) => void;
   setImagesByFilename: (map: Record<string, string>) => void;
+  setLocalImageList: (list: string[]) => void;
+  setLocalImageUrls: (map: Record<string, string>) => void;
+  setColorMappingPerProduct: (
+    productIndex: number,
+    mapping: Record<string, string>
+  ) => void;
   setWorkbook: (workbook: WorkBook | null) => void;
   setSheetNames: (sheetNames: string[]) => void;
   setSelectedSheetName: (name: string | null) => void;
@@ -50,6 +62,7 @@ type UploadActions = {
   setExcelHeaders: (headers: string[]) => void;
   setColumnMapping: (mapping: ColumnMapping | null) => void;
   setMappingConfirmed: (confirmed: boolean) => void;
+  setUniversalTags: (tags: string[]) => void;
 };
 
 const initialState: UploadState = {
@@ -62,6 +75,9 @@ const initialState: UploadState = {
   imageList: [],
   imageMapping: {},
   imagesByFilename: {},
+  localImageList: [],
+  localImageUrls: {},
+  colorMappingPerProduct: {},
   workbook: null,
   sheetNames: [],
   selectedSheetName: null,
@@ -69,6 +85,7 @@ const initialState: UploadState = {
   excelHeaders: [],
   columnMapping: null,
   mappingConfirmed: false,
+  universalTags: [],
 };
 
 export const useUploadStore = create<UploadState & UploadActions>((set) => ({
@@ -127,13 +144,24 @@ export const useUploadStore = create<UploadState & UploadActions>((set) => ({
   setCurrentUploadProduct: (currentUploadProduct) =>
     set({ currentUploadProduct }),
 
-  resetUpload: () =>
+  resetUpload: () => {
+    const state = useUploadStore.getState();
+    Object.values(state.localImageUrls).forEach((url) => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        // ignore
+      }
+    });
     set({
       ...initialState,
       products: [],
       imageList: [],
       imageMapping: {},
       imagesByFilename: {},
+      localImageList: [],
+      localImageUrls: {},
+      colorMappingPerProduct: {},
       workbook: null,
       sheetNames: [],
       selectedSheetName: null,
@@ -141,11 +169,22 @@ export const useUploadStore = create<UploadState & UploadActions>((set) => ({
       excelHeaders: [],
       columnMapping: null,
       mappingConfirmed: false,
-    }),
+      universalTags: [],
+    });
+  },
 
   setImageList: (imageList) => set({ imageList }),
   setImageMapping: (imageMapping) => set({ imageMapping }),
   setImagesByFilename: (imagesByFilename) => set({ imagesByFilename }),
+  setLocalImageList: (localImageList) => set({ localImageList }),
+  setLocalImageUrls: (localImageUrls) => set({ localImageUrls }),
+  setColorMappingPerProduct: (productIndex, mapping) =>
+    set((state) => ({
+      colorMappingPerProduct: {
+        ...state.colorMappingPerProduct,
+        [productIndex]: mapping,
+      },
+    })),
   setWorkbook: (workbook) => set({ workbook }),
   setSheetNames: (sheetNames) => set({ sheetNames }),
   setSelectedSheetName: (selectedSheetName) => set({ selectedSheetName }),
@@ -153,4 +192,5 @@ export const useUploadStore = create<UploadState & UploadActions>((set) => ({
   setExcelHeaders: (excelHeaders) => set({ excelHeaders }),
   setColumnMapping: (columnMapping) => set({ columnMapping }),
   setMappingConfirmed: (mappingConfirmed) => set({ mappingConfirmed }),
+  setUniversalTags: (universalTags) => set({ universalTags }),
 }));

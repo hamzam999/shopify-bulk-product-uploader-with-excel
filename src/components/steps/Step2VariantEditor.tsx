@@ -42,8 +42,11 @@ export function Step2VariantEditor() {
   const addVariant = useUploadStore((s) => s.addVariant);
   const removeVariant = useUploadStore((s) => s.removeVariant);
   const updateVariant = useUploadStore((s) => s.updateVariant);
+  const universalTags = useUploadStore((s) => s.universalTags);
+  const setUniversalTags = useUploadStore((s) => s.setUniversalTags);
 
   const [jsonOpen, setJsonOpen] = useState(true);
+  const [universalTagsInput, setUniversalTagsInput] = useState("");
 
   const selectedProduct =
     selectedProductIndex !== null && products[selectedProductIndex]
@@ -68,6 +71,18 @@ export function Step2VariantEditor() {
       setValue("productType", selectedProduct.productType);
     }
   }, [selectedProduct, setValue]);
+
+  useEffect(() => {
+    setUniversalTagsInput(universalTags.join(", "));
+  }, [universalTags]);
+
+  const applyUniversalTags = () => {
+    const tags = universalTagsInput
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    setUniversalTags(tags);
+  };
 
   const onSubmit = (data: ProductFormValues) => {
     if (selectedProductIndex === null) return;
@@ -101,8 +116,34 @@ export function Step2VariantEditor() {
     );
   }
 
+  const effectiveTagsForProduct = (p: Product) =>
+    [...new Set([...universalTags, ...p.tags])];
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Universal tags</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            These tags are applied to every product. Use the per-product tags below for product-specific tags.
+          </p>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[200px] flex-1">
+            <Input
+              value={universalTagsInput}
+              onChange={(e) => setUniversalTagsInput(e.target.value)}
+              placeholder="e.g. summer-2024, sale (comma-separated)"
+              className="h-9"
+            />
+          </div>
+          <Button type="button" size="sm" onClick={applyUniversalTags}>
+            Apply to all products
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
       <div className="lg:col-span-3">
         <Card>
           <CardHeader className="pb-2">
@@ -131,7 +172,7 @@ export function Step2VariantEditor() {
       </div>
 
       <div className="lg:col-span-5">
-        {selectedProduct && (
+        {selectedProduct && selectedProductIndex !== null && (
           <Card>
             <CardHeader>
               <CardTitle>Edit product</CardTitle>
@@ -147,8 +188,8 @@ export function Step2VariantEditor() {
                   <Input {...register("handle")} className="mt-1" />
                 </div>
                 <div>
-                  <Label>Tags (comma-separated)</Label>
-                  <Input {...register("tags")} className="mt-1" />
+                  <Label>Tags (comma-separated, product-specific)</Label>
+                  <Input {...register("tags")} className="mt-1" placeholder="Extra tags for this product only" />
                 </div>
                 <div>
                   <Label>Product type</Label>
@@ -188,7 +229,7 @@ export function Step2VariantEditor() {
                             <Input
                               value={v.price}
                               onChange={(e) =>
-                                updateVariant(selectedProductIndex, vi, {
+                                updateVariant(selectedProductIndex as number, vi, {
                                   price: e.target.value,
                                 })
                               }
@@ -199,7 +240,7 @@ export function Step2VariantEditor() {
                             <Input
                               value={v.sku}
                               onChange={(e) =>
-                                updateVariant(selectedProductIndex, vi, {
+                                updateVariant(selectedProductIndex as number, vi, {
                                   sku: e.target.value,
                                 })
                               }
@@ -212,7 +253,7 @@ export function Step2VariantEditor() {
                               size="icon"
                               variant="ghost"
                               className="h-8 w-8"
-                              onClick={() => removeVariant(selectedProductIndex, vi)}
+                              onClick={() => removeVariant(selectedProductIndex as number, vi)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -247,7 +288,9 @@ export function Step2VariantEditor() {
             <ScrollArea className="mt-2 h-[500px] rounded border bg-muted/30 p-3">
               <pre className="text-xs">
                 {JSON.stringify(
-                  selectedProduct ? [selectedProduct] : products,
+                  selectedProduct
+                    ? [{ ...selectedProduct, tags: effectiveTagsForProduct(selectedProduct) }]
+                    : products.map((p) => ({ ...p, tags: effectiveTagsForProduct(p) })),
                   null,
                   2
                 )}
@@ -255,6 +298,7 @@ export function Step2VariantEditor() {
             </ScrollArea>
           </CollapsibleContent>
         </Collapsible>
+      </div>
       </div>
     </div>
   );

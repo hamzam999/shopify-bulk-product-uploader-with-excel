@@ -20,8 +20,8 @@ function useStepValid() {
   const currentStep = useUploadStore((s) => s.currentStep);
   const products = useUploadStore((s) => s.products);
   const mappingConfirmed = useUploadStore((s) => s.mappingConfirmed);
-  const imageList = useUploadStore((s) => s.imageList);
   const imagesByFilename = useUploadStore((s) => s.imagesByFilename);
+  const localImageList = useUploadStore((s) => s.localImageList);
 
   switch (currentStep) {
     case 1:
@@ -29,7 +29,10 @@ function useStepValid() {
     case 2:
       return products.length > 0;
     case 3:
-      return products.length > 0 && (imageList.length > 0 || Object.keys(imagesByFilename).length > 0);
+      return (
+        products.length > 0 &&
+        (Object.keys(imagesByFilename).length > 0 || localImageList.length > 0)
+      );
     case 4:
       return true;
     default:
@@ -75,7 +78,7 @@ export default function Wizard() {
         </div>
         <StepIndicator />
       </header>
-      <main className="container mx-auto max-w-6xl px-4 py-6">
+      <main className="mx-auto p-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}

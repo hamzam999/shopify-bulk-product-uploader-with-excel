@@ -73,6 +73,53 @@ function getOptionValues(product: GraphqlProduct): {
   return { colorValues, sizeValues };
 }
 
+function sortImagesByColorOptionOrder(
+  images: GraphqlProductImage[],
+  colorValues: string[],
+  productSku: string,
+  optionToImageTerm?: Record<string, string>
+): GraphqlProductImage[] {
+  if (colorValues.length === 0 || images.length <= 1) return images;
+
+  const ordered: GraphqlProductImage[] = [];
+  const usedKeys = new Set<string>();
+  const keyFor = (img: GraphqlProductImage) => `${img.filename}::${img.url}`;
+  const byFilenameAsc = (a: GraphqlProductImage, b: GraphqlProductImage) =>
+    a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+
+  for (const color of colorValues) {
+    const colorImages = getImagesForColor(
+      images,
+      color,
+      productSku,
+      optionToImageTerm
+    );
+    const sortedColorImages = colorImages
+      .filter((image): image is GraphqlProductImage =>
+        typeof image.url === "string" && image.url.length > 0
+      )
+      .sort(byFilenameAsc);
+    for (const image of sortedColorImages) {
+      if (!image.url) continue;
+      const key = keyFor(image);
+      if (usedKeys.has(key)) continue;
+      usedKeys.add(key);
+      ordered.push(image);
+    }
+  }
+
+  const remainingImages = images
+    .filter((image) => !usedKeys.has(keyFor(image)))
+    .sort(byFilenameAsc);
+  for (const image of remainingImages) {
+    const key = keyFor(image);
+    if (usedKeys.has(key)) continue;
+    ordered.push(image);
+  }
+
+  return ordered;
+}
+
 export function validateForGraphqlExport(
   products: GraphqlProduct[]
 ): GraphqlValidationResult {
@@ -113,7 +160,8 @@ export function validateForGraphqlExport(
  */
 export function generateProductMutation(
   product: GraphqlProduct,
-  universalTags: string[] = []
+  universalTags: string[] = [],
+  optionToImageTerm?: Record<string, string>
 ): string {
   const tags = [...new Set([...universalTags, ...product.tags])];
   const { colorValues, sizeValues } = getOptionValues(product);
@@ -141,15 +189,20 @@ export function generateProductMutation(
   const imagesWithUrls = (product.images ?? []).filter(
     (img): img is GraphqlProductImage => typeof img.url === "string" && img.url.length > 0
   );
-  const mediaParam =
-    imagesWithUrls.length > 0
-      ? `,
-  media: [${imagesWithUrls
-    .map(
-      (img) =>
-        `{ originalSource: "${escapeGraphqlString(img.url)}", mediaContentType: IMAGE }`
-    )
-    .join(", ")}]`
+  const orderedImagesWithUrls = sortImagesByColorOptionOrder(
+    imagesWithUrls,
+    colorValues,
+    product.sku,
+    optionToImageTerm
+  );
+  const mediaArg =
+    orderedImagesWithUrls.length > 0
+      ? `, media: [${orderedImagesWithUrls
+          .map(
+            (img) =>
+              `{ originalSource: "${escapeGraphqlString(img.url)}", mediaContentType: IMAGE, alt: "${escapeGraphqlString(img.filename)}" }`
+          )
+          .join(", ")}]`
       : "";
 
   return `mutation {
@@ -161,8 +214,11 @@ export function generateProductMutation(
     tags: [${tagsArr}]
     status: DRAFT
     productOptions: [${productOptionsJson}]
-  }${mediaParam}) {
-    product { id }
+  }${mediaArg}) {
+    product {
+      id
+      media(first: 50) { nodes { id alt } }
+    }
     userErrors { field message }
   }
 }`;
@@ -172,14 +228,16 @@ export function generateProductMutation(
  * Generate productVariantsBulkCreate mutation for a single product.
  * Use productIdPlaceholder when product ID is unknown (e.g. before productCreate runs).
  * Optionally pass optionToImageTerm for color-to-filename mapping (from ColorMappingModal).
+ * Optionally pass mediaByFilename (filename -> mediaId) from productCreate response to attach variant images via mediaId.
  *
- * ProductVariantsBulkInput fields used: price, inventoryItem, optionValues, mediaSrc, inventoryPolicy, taxable.
- * inventoryItem (InventoryItemInput): sku, requiresShipping.
+ * ProductVariantsBulkInput fields used: price, inventoryItem, optionValues, mediaSrc/mediaId, inventoryPolicy, taxable.
+ * inventoryItem (InventoryItemInput): sku, requiresShipping, tracked (false = don't track inventory).
  */
 export function generateVariantsMutation(
   product: GraphqlProduct,
   productIdPlaceholder: string = "gid://shopify/Product/REPLACE_AFTER_CREATE",
-  optionToImageTerm?: Record<string, string>
+  optionToImageTerm?: Record<string, string>,
+  mediaByFilename?: Record<string, string>
 ): string {
   const { colorIndex, sizeIndex } = getOptionIndices(product);
   const variantSkus = product.sku;
@@ -210,19 +268,28 @@ export function generateVariantsMutation(
       color && images.length > 0
         ? getImagesForColor(images, color, product.sku, optionToImageTerm)
         : [];
-    const variantImageUrl = colorImages.find((img) => img.url)?.url;
-    const mediaSrcEntry =
-      variantImageUrl
-        ? `mediaSrc: ["${escapeGraphqlString(variantImageUrl)}"], `
-        : "";
+    const variantImage = colorImages.find((img) => img.url);
+    const variantImageUrl = variantImage?.url;
+    const variantFilename = variantImage?.filename;
+
+    let mediaEntry = "";
+    if (mediaByFilename && variantFilename) {
+      const mediaId = mediaByFilename[variantFilename];
+      if (mediaId) {
+        mediaEntry = `mediaId: "${escapeGraphqlString(mediaId)}", `;
+      }
+    }
+    if (!mediaEntry && variantImageUrl) {
+      mediaEntry = `mediaSrc: ["${escapeGraphqlString(variantImageUrl)}"], `;
+    }
 
     const priceEsc = escapeGraphqlString(variant.price);
     const skuEsc = escapeGraphqlString(variantSkus);
 
     return `      {
         price: "${priceEsc}",
-        inventoryItem: { sku: "${skuEsc}", requiresShipping: true },
-        ${mediaSrcEntry}${optionValuesEntry}inventoryPolicy: DENY,
+        inventoryItem: { sku: "${skuEsc}", requiresShipping: true, tracked: false },
+        ${mediaEntry}${optionValuesEntry}inventoryPolicy: DENY,
         taxable: true
       }`;
   });
@@ -230,6 +297,7 @@ export function generateVariantsMutation(
   return `mutation {
   productVariantsBulkCreate(
     productId: "${productIdPlaceholder}"
+    strategy: REMOVE_STANDALONE_VARIANT
     variants: [
 ${variantInputs.join(",\n")}
     ]
@@ -241,20 +309,54 @@ ${variantInputs.join(",\n")}
 }
 
 /**
+ * Parse productCreate response JSON to extract product ID and media IDs by filename (alt).
+ * Returns { productId, mediaByFilename } or null if parsing fails.
+ */
+export function parseProductCreateResponse(
+  json: string
+): { productId: string; mediaByFilename: Record<string, string> } | null {
+  try {
+    const data = JSON.parse(json) as {
+      data?: { productCreate?: { product?: { id?: string; media?: { nodes?: Array<{ id?: string; alt?: string }> } } } };
+    };
+    const product = data?.data?.productCreate?.product;
+    if (!product?.id) return null;
+
+    const mediaByFilename: Record<string, string> = {};
+    const nodes = product.media?.nodes ?? [];
+    for (const node of nodes) {
+      if (node.id && node.alt) {
+        mediaByFilename[node.alt] = node.id;
+      }
+    }
+
+    return { productId: product.id, mediaByFilename };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Generate both mutations for a single product.
  */
 export function generateForProduct(
   product: GraphqlProduct,
   universalTags: string[] = [],
   productIdPlaceholder?: string,
-  optionToImageTerm?: Record<string, string>
+  optionToImageTerm?: Record<string, string>,
+  mediaByFilename?: Record<string, string>
 ): GraphqlMutationResult {
   return {
-    productMutation: generateProductMutation(product, universalTags),
+    productMutation: generateProductMutation(
+      product,
+      universalTags,
+      optionToImageTerm
+    ),
     variantsMutation: generateVariantsMutation(
       product,
       productIdPlaceholder ?? "gid://shopify/Product/REPLACE_AFTER_CREATE",
-      optionToImageTerm
+      optionToImageTerm,
+      mediaByFilename
     ),
   };
 }
@@ -272,14 +374,14 @@ export function generateForProducts(
 /**
  * Full export: validate and generate for a single product (or first product).
  * Returns structured output with validation summary.
- * @param productIdFromCreate - Optional product ID from productCreate response; when set, variants mutation uses it instead of placeholder
+ * @param productCreateResponse - Optional: product ID string, or full productCreate JSON response. When full JSON is pasted, extracts productId and mediaByFilename for variant image attachment.
  * @param colorMappingPerProduct - Optional map of productIndex -> (color -> imageSearchTerm) for variant image by color
  */
 export function generateGraphqlExport(
   products: GraphqlProduct[],
   universalTags: string[] = [],
   productIndex: number = 0,
-  productIdFromCreate?: string,
+  productCreateResponse?: string,
   colorMappingPerProduct?: Record<number, Record<string, string>>
 ): GraphqlGeneratorOutput {
   const validation = validateForGraphqlExport(products);
@@ -295,13 +397,27 @@ export function generateGraphqlExport(
   }
 
   const product = products[productIndex];
-  const productId = productIdFromCreate?.trim() || "gid://shopify/Product/REPLACE_AFTER_CREATE";
+  let productId = "gid://shopify/Product/REPLACE_AFTER_CREATE";
+  let mediaByFilename: Record<string, string> | undefined;
+
+  const trimmed = productCreateResponse?.trim();
+  if (trimmed) {
+    const parsed = parseProductCreateResponse(trimmed);
+    if (parsed) {
+      productId = parsed.productId;
+      mediaByFilename = Object.keys(parsed.mediaByFilename).length > 0 ? parsed.mediaByFilename : undefined;
+    } else if (trimmed.startsWith("gid://")) {
+      productId = trimmed;
+    }
+  }
+
   const optionToImageTerm = colorMappingPerProduct?.[productIndex];
   const mutations = generateForProduct(
     product,
     universalTags,
     productId,
-    optionToImageTerm
+    optionToImageTerm,
+    mediaByFilename
   );
 
   return {

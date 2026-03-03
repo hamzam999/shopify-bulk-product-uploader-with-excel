@@ -218,7 +218,9 @@ export function Step4Upload() {
                 <span className="text-sm font-medium">Product</span>
                 <Select
                   value={String(graphqlProductIndex)}
-                  onValueChange={(v) => setGraphqlProductIndex(parseInt(v, 10))}
+                  onValueChange={(v) => {setGraphqlProductIndex(parseInt(v, 10))
+                    setProductIdFromCreate("");
+                  }}
                 >
                   <SelectTrigger className="w-[280px]">
                     <SelectValue />
@@ -258,17 +260,17 @@ export function Step4Upload() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="product-id-input" className="text-sm font-medium">
-                      2. Paste product ID from productCreate response
+                      2. Paste product ID or full productCreate response
                     </Label>
                     <Input
                       id="product-id-input"
-                      placeholder="gid://shopify/Product/1234567890"
+                      placeholder="gid://shopify/Product/1234567890 or full JSON response"
                       value={productIdFromCreate}
                       onChange={(e) => setProductIdFromCreate(e.target.value)}
                       className="font-mono text-sm"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Run productCreate, copy the product id from the response, paste above. The variants mutation below will use it.
+                      Paste the full productCreate response JSON to attach variant images. Paste product ID only for variants without images.
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -294,7 +296,7 @@ export function Step4Upload() {
                   </div>
                   {!productIdFromCreate.trim() && (
                     <p className="text-xs text-muted-foreground">
-                      Paste the product ID above to update the variants mutation. Then copy and run it.
+                      Paste the product ID or full response above to update the variants mutation. Then copy and run it.
                     </p>
                   )}
                 </div>

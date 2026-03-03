@@ -35,8 +35,9 @@ function parseList(value: string): string[] {
 function descriptionToHtml(description: string): string {
   if (!description.trim()) return "<p></p>";
   const lines = description.split(/\n/).map((l) => l.trim()).filter(Boolean);
+  const linesWithoutStyleName = lines.slice(1);
   const out: string[] = [];
-  for (const line of lines) {
+  for (const line of linesWithoutStyleName) {
     const colonIdx = line.indexOf(":");
     if (colonIdx >= 0) {
       const label = line.slice(0, colonIdx + 1);

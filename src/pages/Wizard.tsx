@@ -104,7 +104,7 @@ export default function Wizard() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="space-y-6 px-12 p-8 bg-gray-100 rounded-lg "
+            className="space-y-6 px-12 p-8 bg-gray-100 dark:bg-gray-900 rounded-lg "
           >
             <CurrentStepComponent />
            

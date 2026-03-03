@@ -55,6 +55,12 @@ type UploadActions = {
     productIndex: number,
     mapping: Record<string, string>
   ) => void;
+  /** Move image at fromIndex to toIndex (0-based). Updates product.images order. */
+  moveProductImage: (
+    productIndex: number,
+    fromIndex: number,
+    toIndex: number
+  ) => void;
   setWorkbook: (workbook: Workbook | null) => void;
   setSheetNames: (sheetNames: string[]) => void;
   setSelectedSheetName: (name: string | null) => void;
@@ -185,6 +191,27 @@ export const useUploadStore = create<UploadState & UploadActions>((set) => ({
         [productIndex]: mapping,
       },
     })),
+  moveProductImage: (productIndex, fromIndex, toIndex) =>
+    set((state) => {
+      const products = [...state.products];
+      if (
+        productIndex < 0 ||
+        productIndex >= products.length ||
+        fromIndex === toIndex
+      )
+        return state;
+      const images = products[productIndex].images ?? [];
+      if (fromIndex < 0 || fromIndex >= images.length) return state;
+      if (toIndex < 0 || toIndex >= images.length) return state;
+      const next = [...images];
+      const [item] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, item);
+      products[productIndex] = {
+        ...products[productIndex],
+        images: next,
+      };
+      return { products };
+    }),
   setWorkbook: (workbook) => set({ workbook }),
   setSheetNames: (sheetNames) => set({ sheetNames }),
   setSelectedSheetName: (selectedSheetName) => set({ selectedSheetName }),

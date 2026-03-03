@@ -35,7 +35,6 @@ export function ProductPagePreview({
   const images = product.images ?? [];
   const effectiveColor = selectedColor ?? colorOpt?.values[0] ?? null;
   const effectiveSize = selectedSize ?? sizeOpt?.values[0] ?? null;
-  console.log(optionToImageTerm);
   const displayImages = useMemo(() => {
     if (!colorOpt || !effectiveColor) return images;
     return getImagesForColor(
